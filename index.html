@@ -72,11 +72,22 @@
   /* Hero */
   body { overflow-x: clip; }
   .hero {
-    position: relative; width: 100vw; height: 100vh; overflow: hidden;
-    margin-top: -64px; background: #fefefe; touch-action: none;
+    position: relative; width: 100vw; height: 100vh; height: 100svh; overflow: hidden;
+    margin-top: -64px; background: #fefefe;
+    /* geser vertikal = gulir halaman, geser horizontal = menggores foto */
+    touch-action: pan-y;
     -webkit-user-select: none; user-select: none;
   }
-  .hero-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .hero { --bar: 0px; }
+  .hero-canvas { position: absolute; top: 0; left: 0; width: 100%; height: calc(100% - var(--bar)); display: block; }
+  /* mobile & tablet: area khusus tombol di bawah foto, terpisah dari animasi gores */
+  @media (max-width: 1024px) {
+    .hero { --bar: calc(5.5rem + env(safe-area-inset-bottom, 0px)); }
+    .hero .scroll-cue {
+      position: absolute; left: 50%; transform: translateX(-50%); margin: 0; align-self: auto;
+      bottom: calc((5.5rem - 2.6rem) / 2 + env(safe-area-inset-bottom, 0px));
+    }
+  }
   #heroBase { z-index: 0; } #heroTop { z-index: 1; }
   .hero-ui {
     position: absolute; inset: 0; z-index: 2; pointer-events: none;
@@ -92,13 +103,12 @@
   .hero .role .typed { color: #F2A93B; }
   .hero .role .hl { color: #F2A93B; font-weight: 700; }
   .scroll-cue {
-    pointer-events: auto; position: absolute; left: 50%; transform: translateX(-50%);
-    bottom: calc(1.75rem + env(safe-area-inset-bottom, 0px));
+    pointer-events: auto; position: static; align-self: flex-start; margin-top: 1.25rem;
     color: #fff; text-decoration: none; font-weight: 600; font-size: .95rem;
     border: 1.5px solid #fff; border-radius: 999px; padding: .55rem 1.2rem;
   }
   @media (max-width: 760px) {
-    .hero-ui { justify-content: flex-end; padding-bottom: 6rem; }
+    .hero-ui { justify-content: flex-end; padding-bottom: calc(var(--bar) + 1.5rem); }
   }
   .hero-intro { color: var(--muted); font-size: 1.15rem; margin: 0 0 .5rem; }
   .name {
@@ -428,11 +438,11 @@
   /* Toast */
   .toast {
     position: fixed; left: 50%; bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
-    transform: translate(-50%, 150%); background: var(--ink); color: var(--bg);
+    transform: translate(-50%, calc(100% + 4rem)); visibility: hidden; background: var(--ink); color: var(--bg);
     padding: .75rem 1.25rem; border-radius: 999px; font-weight: 600; z-index: 50;
     transition: transform .3s;
   }
-  .toast.show { transform: translate(-50%, 0); }
+  .toast.show { transform: translate(-50%, 0); visibility: visible; }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
@@ -463,10 +473,10 @@
     <div class="hero-ui">
       <div class="wrap hero-inner">
         <h1 class="name" id="name" aria-label="Vinsensia Resti Afrianti"></h1>
-        <p class="hint" id="hint">Gerakkan kursor atau seret jari untuk menggores foto.</p>
+        <p class="hint" id="hint">Gerakkan kursor atau geser jari ke samping untuk menggores foto.</p>
         <p class="role">Haloo, Saya seorang <span class="typed hl" id="typed"></span>!!</p>
+        <a class="scroll-cue" href="#tentang">Gulir ke profil ↓</a>
       </div>
-      <a class="scroll-cue" href="#tentang">Gulir ke profil ↓</a>
     </div>
   </section>
 
@@ -662,7 +672,7 @@ const profil = {
   linkedin: "https://www.linkedin.com/in/vinsensia-resti-afrianti-92a7ab1a5",
   zonaWaktu: "Asia/Jakarta",
   jamKerja: [9, 18],
-  peran: ["Programmer", "Fullstack Developer", "Backend Developer", "Frontend Developer"],
+  peran: ["Programmer", "Fullstack Developer", "Frontend Developer"],
   fakta: ["📍 Yogyakarta", "💼 Web Developer di Olsera", "🎓 S1 Informatika UAJY", "💚 IT Developer", "💻 Programmer", "🧩 Fullstack Developer", "⚙️ Backend Developer", "🎨 Frontend Developer"],
   proyek: [
     { judul: "Sewarung by Olsera", kategori: "Landing page", gambar: GAMBAR.sewarung, contain: true,
@@ -1259,8 +1269,10 @@ const HERO = {
     ctx.drawImage(o, x, 0, w, h);
   }
 
+  let sudahDigambar = false;
   function ukur() {
-    const r = hero.getBoundingClientRect();
+    const r = cTop.getBoundingClientRect();
+    if (img1 && sudahDigambar && Math.abs(r.width - W) < 1 && Math.abs(r.height - H) < 1) return;
     W = r.width; H = r.height;
     dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     D = Math.max(190, Math.min(440, Math.min(W, H) * 0.36));
@@ -1268,6 +1280,7 @@ const HERO = {
     if (!img1) return;
     komposisi(ctxB, img2, HERO.fill2);
     komposisi(comp1.getContext("2d"), img1, HERO.fill1);
+    sudahDigambar = true;
     gambar(performance.now());
   }
 
@@ -1362,12 +1375,26 @@ const HERO = {
     stroke = { px: x, py: y, mx: x, my: y, lx: x, ly: y, dx: 1, dy: 0, v: 0, last: now, r: rng(seedStroke++ * 7919), mulai: true };
   }
 
-  const posisi = (e) => { const r = hero.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  const posisi = (e) => { const r = cTop.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
 
   function gerak(e) {
     if (!siap) return;
     if (e.pointerType !== "mouse" && !e.isPrimary) return;
-    if (e.pointerType !== "mouse" && !hero.hasPointerCapture?.(e.pointerId) && !aktifSentuh) return;
+    if (e.pointerType !== "mouse") {
+      if (!aktifSentuh || sentuh.id !== e.pointerId) return;
+      if (sentuh.mode === "gulir") return;
+      if (sentuh.mode === "menunggu") {
+        const dx = e.clientX - sentuh.x0, dy = e.clientY - sentuh.y0;
+        if (Math.hypot(dx, dy) < 10) return;            // belum jelas arahnya
+        if (Math.abs(dy) > Math.abs(dx) * 0.8) {         // dominan vertikal: biarkan halaman bergulir
+          sentuh.mode = "gulir"; return;
+        }
+        sentuh.mode = "gores";                            // dominan horizontal: mulai menggores
+        try { hero.setPointerCapture(e.pointerId); } catch (err) {}
+        const [sx, sy] = posisi({ clientX: sentuh.x0, clientY: sentuh.y0 });
+        mulai(sx, sy, performance.now());
+      }
+    }
     const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
     for (const ev of (evs.length ? evs : [e])) {
       const [x, y] = posisi(ev);
@@ -1384,16 +1411,18 @@ const HERO = {
   }
 
   let aktifSentuh = false;
+  const sentuh = { id: null, x0: 0, y0: 0, mode: "menunggu" };
   hero.addEventListener("pointermove", gerak);
   hero.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") stroke = null; });
   hero.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") stroke = null; });
   hero.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "mouse" || e.target.closest("a, button")) return;
+    if (!e.isPrimary) return;
+    if (posisi(e)[1] > H) return; // sentuhan di area tombol: bukan untuk menggores
     aktifSentuh = true; stroke = null;
-    try { hero.setPointerCapture(e.pointerId); } catch (err) {}
-    const [x, y] = posisi(e); mulai(x, y, performance.now());
+    sentuh.id = e.pointerId; sentuh.x0 = e.clientX; sentuh.y0 = e.clientY; sentuh.mode = "menunggu";
   });
-  const selesaiSentuh = (e) => { if (e.pointerType === "mouse") return; aktifSentuh = false; stroke = null; };
+  const selesaiSentuh = (e) => { if (e.pointerType === "mouse") return; aktifSentuh = false; stroke = null; sentuh.mode = "menunggu"; };
   hero.addEventListener("pointerup", selesaiSentuh);
   hero.addEventListener("pointercancel", selesaiSentuh);
 
